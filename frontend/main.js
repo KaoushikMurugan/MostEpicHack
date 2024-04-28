@@ -21,8 +21,41 @@ const servers = {
   iceCandidatePoolSize: 10,
 };
 
+// Function to fetch documents from Firestore collection
+const renderDocuments = async () => {
+  try {
+    const collectionRef = firestore.collection('calls');
+    const querySnapshot = await collectionRef.get();
+
+    // Get document IDs
+    const documentIDs = querySnapshot.docs.map(doc => doc.id);
+    console.log(documentIDs);
+
+    // Clear previous data
+    const documentListElement = document.getElementById('documentList');
+    documentListElement.innerHTML = '';
+
+    // Render documents
+    documentIDs.forEach(documentID => {
+      const option = document.createElement('option');
+      option.value = documentID;
+      option.textContent = documentID;
+      documentListElement.appendChild(option);
+    });
+  } catch (error) {
+    console.error('Error fetching documents:', error);
+  }
+};
+
+// Call renderDocuments function when the DOM content is loaded
+document.addEventListener('DOMContentLoaded', renderDocuments);
+
+// Call renderDocuments function when the DOM content is loaded
+document.addEventListener('DOMContentLoaded', renderDocuments);
+
 // Global State
 const pc = new RTCPeerConnection(servers);
+const remoteVideo = document.getElementById('remoteVideo');
 
 var connectButton = null;
 var disconnectButton = null;
@@ -32,6 +65,8 @@ var remoteConnection = null;  // RTCPeerConnection for the "remote"
 
 var sendChannel = null;       // RTCDataChannel for the local (sender)
 var receiveChannel = null;    // RTCDataChannel for the remote (receiver)
+
+var remoteStream = null;      // MediaStream from remote peer
 
 function startup() {
   connectButton = document.getElementById('connectButton');
@@ -64,43 +99,94 @@ function keydownListener(event) {
 // machine here, but we're just connecting two local objects, so we can
 // bypass that step.
 
+// Function to connect to a selected document ID
+const connectToDocument = async (documentId) => {
+  const callDoc = firestore.collection('calls').doc(documentId);
+  const answerCandidates = callDoc.collection('answerCandidates');
+  const offerCandidates = callDoc.collection('offerCandidates');
+
+  pc.onicecandidate = (event) => {
+    event.candidate && answerCandidates.add(event.candidate.toJSON());
+  };
+
+  const callData = (await callDoc.get()).data();
+
+  const offerDescription = callData.offer;
+  await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
+
+  const answerDescription = await pc.createAnswer();
+  await pc.setLocalDescription(answerDescription);
+
+  const answer = {
+    type: answerDescription.type,
+    sdp: answerDescription.sdp,
+  };
+
+  await callDoc.update({ answer });
+
+  offerCandidates.onSnapshot((snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      if (change.type === 'added') {
+        let data = change.doc.data();
+        pc.addIceCandidate(new RTCIceCandidate(data));
+      }
+    });
+  });
+};
+
 function connectPeers() {
   // Create the local connection and its event listeners
-  
+
   localConnection = new RTCPeerConnection();
-  
+
   // Create the data channel and establish its event listeners
   sendChannel = localConnection.createDataChannel("sendChannel");
   sendChannel.onopen = handleSendChannelStatusChange;
   sendChannel.onclose = handleSendChannelStatusChange;
-  
- 
+
+
   addKeyDownEventListener();
 
   // Create the remote connection and its event listeners
-  
+
   remoteConnection = new RTCPeerConnection();
   remoteConnection.ondatachannel = receiveChannelCallback;
-  
+
   // Set up the ICE candidates for the two peers
-  
+
   localConnection.onicecandidate = e => !e.candidate
-      || remoteConnection.addIceCandidate(e.candidate)
+    || remoteConnection.addIceCandidate(e.candidate)
       .catch(handleAddCandidateError);
 
   remoteConnection.onicecandidate = e => !e.candidate
-      || localConnection.addIceCandidate(e.candidate)
+    || localConnection.addIceCandidate(e.candidate)
       .catch(handleAddCandidateError);
-  
+
   // Now create an offer to connect; this starts the process
-  
+
   localConnection.createOffer()
-  .then(offer => localConnection.setLocalDescription(offer))
-  .then(() => remoteConnection.setRemoteDescription(localConnection.localDescription))
-  .then(() => remoteConnection.createAnswer())
-  .then(answer => remoteConnection.setLocalDescription(answer))
-  .then(() => localConnection.setRemoteDescription(remoteConnection.localDescription))
-  .catch(handleCreateDescriptionError);
+    .then(offer => localConnection.setLocalDescription(offer))
+    .then(() => remoteConnection.setRemoteDescription(localConnection.localDescription))
+    .then(() => remoteConnection.createAnswer())
+    .then(answer => remoteConnection.setLocalDescription(answer))
+    .then(() => localConnection.setRemoteDescription(remoteConnection.localDescription))
+    .catch(handleCreateDescriptionError);
+
+  // Call the function to connect to the selected document ID
+  const selectedDocumentId = document.getElementById('documentList').value;
+  connectToDocument(selectedDocumentId);
+
+  // connect to the remote peer's camera
+  remoteStream = new MediaStream();
+
+  // Pull tracks from remote stream, add to video stream
+  pc.ontrack = (event) => {
+    event.streams[0].getTracks().forEach((track) => {
+      remoteStream.addTrack(track);
+    });
+  };
+
+  remoteVideo.srcObject = remoteStream;
 }
 
 // Handle errors attempting to create a description;
@@ -113,12 +199,12 @@ function handleCreateDescriptionError(error) {
 }
 
 
-  // Handle successful addition of the ICE candidate
-  // on the "local" end of the connection.
-  
-  function handleLocalAddCandidateSuccess() {
-    connectButton.disabled = true;
-  }
+// Handle successful addition of the ICE candidate
+// on the "local" end of the connection.
+
+function handleLocalAddCandidateSuccess() {
+  connectButton.disabled = true;
+}
 
 // Handle successful addition of the ICE candidate
 // on the "remote" end of the connection.
@@ -140,7 +226,7 @@ function handleAddCandidateError() {
 function handleSendChannelStatusChange(event) {
   if (sendChannel) {
     var state = sendChannel.readyState;
-  
+
     if (state === "open") {
       console.log("send channel is open")
       disconnectButton.disabled = false;
@@ -168,7 +254,7 @@ function receiveChannelCallback(event) {
 function handleReceiveMessage(event) {
   var el = document.createElement("p");
   var txtNode = document.createTextNode(event.data);
-  
+
   el.appendChild(txtNode);
   receiveBox.appendChild(el);
 }
@@ -178,9 +264,9 @@ function handleReceiveMessage(event) {
 function handleReceiveChannelStatusChange(event) {
   if (receiveChannel) {
     console.log("Receive channel's status has changed to " +
-                receiveChannel.readyState);
+      receiveChannel.readyState);
   }
-  
+
   // Here you would do stuff that needs to be done
   // when the channel's status changes.
 }
@@ -191,12 +277,12 @@ function handleReceiveChannelStatusChange(event) {
 function disconnectPeers() {
   removeKeyDownEventListener();
   // Close the RTCDataChannels if they're open.
-  
+
   sendChannel.close();
   receiveChannel.close();
-  
+
   // Close the RTCPeerConnections
-  
+
   localConnection.close();
   remoteConnection.close();
 
@@ -204,9 +290,9 @@ function disconnectPeers() {
   receiveChannel = null;
   localConnection = null;
   remoteConnection = null;
-  
+
   // Update user interface elements
-  
+
   connectButton.disabled = false;
   disconnectButton.disabled = true;
 }
