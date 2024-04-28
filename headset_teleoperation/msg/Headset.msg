@@ -1,0 +1,19 @@
+geometry_msgs/Pose h_pose
+
+geometry_msgs/Pose l_pose
+float64 l_thumbstick_x
+float64 l_thumbstick_y
+float64 l_index_trigger
+float64 l_hand_trigger
+bool l_button_one
+bool l_button_two
+bool l_button_thumbstick
+
+geometry_msgs/Pose r_pose
+float64 r_thumbstick_x
+float64 r_thumbstick_y
+float64 r_index_trigger
+float64 r_hand_trigger
+bool r_button_one
+bool r_button_two
+bool r_button_thumbstick

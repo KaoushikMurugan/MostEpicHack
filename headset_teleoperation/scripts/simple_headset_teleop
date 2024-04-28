@@ -1,0 +1,186 @@
+import rospy
+import threading
+from geometry_msgs.msg import Pose, PoseStamped, TransformStamped
+from headset_teleoperation.msg import Headset
+from scipy.spatial.transform import Rotation as R
+import numpy as np
+from copy import deepcopy
+from tf2_ros import TransformBroadcaster
+from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
+from std_msgs.msg import Float64MultiArray
+
+
+class SimpleHeadsetTeleop():
+    def __init__(self):
+        rospy.init_node('simple_headset_teleop', anonymous=True)
+        
+        self.headset_topic = rospy.get_param('~headset_topic', 'headset')
+        self.base_frame = rospy.get_param('~base_frame', 'base_link')
+        self.ee_frame = rospy.get_param('~ee_frame', 'grasp_link')
+        self.ctrl_frame = rospy.get_param('~ctrl_frame', 'left_controller')
+        self.pose_topic = rospy.get_param('~pose_topic', 'pose_command')
+        self.gripper_command_topic = rospy.get_param('~gripper_command_topic', 'gripper_forward_position_controller/commands')
+        self.max_gripper_size = rospy.get_param('~max_gripper_size', 0.93)
+
+        self.headset_sub = rospy.Subscriber(
+            self.headset_topic,
+            Headset,
+            self.headset_callback,
+        )
+        self.headset_mutex = threading.Lock()
+        self.headset_msg = None
+
+        self.pose_publisher = rospy.Publisher(self.pose_topic, PoseStamped, queue_size=1)
+        self.gripper_publisher = rospy.Publisher(self.gripper_command_topic, Float64MultiArray, queue_size=1)
+
+        self.tf_broadcaster = TransformBroadcaster()
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer)
+        
+        self.saved_pose = None
+        self.ee_pose = None
+
+        self.trigger_down = False
+
+        self.timer = rospy.Timer(rospy.Duration(0.01), self.on_timer)
+
+    def headset_callback(self, msg):
+        with self.headset_mutex:
+            self.headset_msg = deepcopy(msg)
+
+    def on_timer(self, _):
+        # get headset msg
+        with self.headset_mutex:
+            headset_msg = self.headset_msg 
+
+        if headset_msg is not None and headset_msg.r_hand_trigger > 0.8:
+
+
+            # get current pose of the controller
+            ctrl_pose = self.get_pose(self.ctrl_frame)
+
+            if self.trigger_down is False:
+                self.saved_pose = ctrl_pose
+                self.ee_pose = self.get_pose(self.ee_frame)
+                self.trigger_down = True
+
+            if self.saved_pose is not None and self.ee_pose is not None and ctrl_pose is not None:
+                self.publish_new_ee_pose(self.saved_pose, ctrl_pose, self.ee_pose)
+
+            # Handle gripper control
+            gripper_msg = Float64MultiArray()
+            gripper_msg.data = [headset_msg.r_index_trigger * self.max_gripper_size]
+            self.gripper_publisher.publish(gripper_msg)
+        else:
+            self.trigger_down = False
+
+    def publish_new_ee_pose(self, saved_pose, current_pose, ee_pose):
+        # convert msg to matrix
+        saved_pose_matrix = self.pose_msg_to_matrix(saved_pose)
+        current_pose_matrix = self.pose_msg_to_matrix(current_pose)
+        ee_pose_matrix = self.pose_msg_to_matrix(ee_pose)
+
+        # calculate offset between current and saved pose
+        offset_matrix = np.dot(np.linalg.inv(saved_pose_matrix), current_pose_matrix)
+
+        ee_pose_matrix_translation = np.eye(4)
+        ee_pose_matrix_translation[:3, 3] = ee_pose_matrix[:3, 3]
+        ee_pose_matrix_rotation = np.eye(4)
+        ee_pose_matrix_rotation[:3, :3] = ee_pose_matrix[:3, :3]
+
+        # calculate new ee pose (relative to base_link)
+        new_ee_pose_matrix = np.dot(ee_pose_matrix_translation, np.dot(offset_matrix, ee_pose_matrix_rotation))
+
+        # calculate new ee pose (relative to ee_pose)
+        # new_ee_pose_matrix = np.dot(ee_pose_matrix, offset_matrix)
+
+        # convert matrix to msg
+        new_ee_pose = self.matrix_to_pose_msg(new_ee_pose_matrix)
+
+        # broadcast new ee pose
+        self.broadcase_pose(new_ee_pose, self.base_frame, "target_ee_pose")
+
+        # create pose stamped
+        new_ee_pose_stamped = PoseStamped()
+        new_ee_pose_stamped.pose = new_ee_pose
+        new_ee_pose_stamped.header.stamp = rospy.Time.now()
+        new_ee_pose_stamped.header.frame_id = self.base_frame
+        self.pose_publisher.publish(new_ee_pose_stamped)
+
+    def get_pose(self, frame_id):
+        try:
+            t = self.tf_buffer.lookup_transform(
+                self.base_frame,
+                frame_id,
+                rospy.Time(0),
+            )
+        except (LookupException, ConnectivityException, ExtrapolationException) as ex:
+            rospy.logwarn(f"Failed to lookup transform from {self.base_frame} to {frame_id}: {ex}")
+            
+            return None
+
+        pose = Pose()
+        pose.position.x = t.transform.translation.x
+        pose.position.y = t.transform.translation.y
+        pose.position.z = t.transform.translation.z
+        pose.orientation.x = t.transform.rotation.x
+        pose.orientation.y = t.transform.rotation.y
+        pose.orientation.z = t.transform.rotation.z
+        pose.orientation.w = t.transform.rotation.w
+        return pose
+
+    def broadcase_pose(self, pose, frame_id, child_frame_id):
+        # Create a TransformStamped message
+        t = TransformStamped()
+
+        # Set the header frame ID
+        t.header.frame_id = frame_id
+
+        # Set the child frame ID
+        t.child_frame_id = child_frame_id
+
+        # Set the transform translation
+        t.transform.translation.x = pose.position.x
+        t.transform.translation.y = pose.position.y
+        t.transform.translation.z = pose.position.z
+
+        # Set the transform rotation
+        t.transform.rotation.x = pose.orientation.x
+        t.transform.rotation.y = pose.orientation.y
+        t.transform.rotation.z = pose.orientation.z
+        t.transform.rotation.w = pose.orientation.w
+
+        # Set the timestamp
+        t.header.stamp = rospy.Time.now()
+
+        # Broadcast the transform
+        self.tf_broadcaster.sendTransform(t)
+    
+    def pose_msg_to_matrix(self, pose_msg):
+        matrix = np.eye(4)
+        matrix[:3, 3] = [pose_msg.position.x, pose_msg.position.y, pose_msg.position.z]
+
+        r = R.from_quat([pose_msg.orientation.x, pose_msg.orientation.y, pose_msg.orientation.z, pose_msg.orientation.w])
+        matrix[:3, :3] = r.as_matrix()
+
+        return matrix
+    
+    def matrix_to_pose_msg(self, matrix):
+        pose_msg = Pose()
+        pose_msg.position.x = matrix[0, 3]
+        pose_msg.position.y = matrix[1, 3]
+        pose_msg.position.z = matrix[2, 3]
+
+        r = R.from_matrix(matrix[:3, :3])
+        pose_msg.orientation.x, pose_msg.orientation.y, pose_msg.orientation.z, pose_msg.orientation.w = r.as_quat()
+
+        return pose_msg
+
+def main():
+    node = SimpleHeadsetTeleop()
+    rospy.spin()
+
+if __name__ == '__main__':
+    main()

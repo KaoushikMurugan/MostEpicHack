@@ -1,0 +1,57 @@
+<launch>
+
+  <arg name="robot_model"                       default="wx250s"/>
+  <arg name="robot_name"                        default="$(arg robot_model)"/>
+  <arg name="base_link_frame"                   default="base_link"/>
+  <arg name="use_rviz"                          default="false"/>
+  <arg name="mode_configs"                      default="$(find headset_teleoperation)/config/modes.yaml"/>
+  <arg name="threshold"                         default="0.75"/>
+  <arg name="controller"                        default="ps4"/>
+  <arg name="launch_driver"                     default="true"/>
+  <arg name="use_sim"                           default="false"/>
+
+  <include if="$(arg launch_driver)" file="$(find interbotix_xsarm_control)/launch/xsarm_control.launch">
+    <arg name="robot_model"                       value="$(arg robot_model)"/>
+    <arg name="robot_name"                        value="$(arg robot_name)"/>
+    <arg name="base_link_frame"                   value="$(arg base_link_frame)"/>
+    <arg name="use_rviz"                          value="$(arg use_rviz)"/>
+    <arg name="mode_configs"                      value="$(arg mode_configs)"/>
+    <arg name="use_sim"                           value="$(arg use_sim)"/>
+  </include>
+
+  <node
+    pkg="headset_teleoperation"
+    type="xsarm_pose_control"
+    name="xsarm_pose_control"
+    output="screen"
+    ns="$(arg robot_name)">
+    <param name="robot_model" value="$(arg robot_model)"/>
+  </node>
+
+  <node
+    pkg="headset_teleoperation"
+    type="headset_receiver"
+    name="headset_receiver"
+    output="screen"
+    ns="$(arg robot_name)"
+  />
+
+  <node 
+    pkg="headset_teleoperation"
+    type="simple_headset_teleop"
+    name="simple_headset_teleop"
+    output="screen"
+    ns="$(arg robot_name)"
+  >
+    <param name="headset_topic" value="headset"/>
+    <param name="base_frame" value="wx250s/base_link"/>
+    <param name="ee_frame" value="wx250s/ee_gripper_link"/>
+    <param name="ctrl_frame" value="right_controller"/>
+    <param name="pose_topic" value="target_ee_pose"/>
+    <param name="gripper_command_topic" value="gripper"/>
+    <param name="max_gripper_size" value="1.0"/>
+  </node>
+
+
+
+</launch>

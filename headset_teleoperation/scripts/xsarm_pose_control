@@ -1,0 +1,241 @@
+# used this as reference: https://github.com/kevinzakka/mjctrl/blob/main/diffik.py
+
+import copy
+import rospy
+import threading
+import numpy as np
+from geometry_msgs.msg import PoseStamped, Pose
+from std_msgs.msg import Float64MultiArray
+from interbotix_xs_modules.arm import InterbotixManipulatorXS
+from scipy.spatial.transform import Rotation
+import PyKDL as kdl
+import kdl_parser_py.urdf as kdl_parser
+import time
+from interbotix_xs_msgs.msg import JointSingleCommand
+
+
+def orientation_error(desired, current):
+    """
+    This function calculates a 3-dimensional orientation error vector for use in the
+    impedance controller. It does this by computing the delta rotation between the
+    inputs and converting that rotation to exponential coordinates (axis-angle
+    representation, where the 3d vector is axis * angle).
+    See https://en.wikipedia.org/wiki/Axis%E2%80%93angle_representation for more information.
+    Optimized function to determine orientation error from matrices
+    """
+    rc1 = current[0:3, 0]
+    rc2 = current[0:3, 1]
+    rc3 = current[0:3, 2]
+    rd1 = desired[0:3, 0]
+    rd2 = desired[0:3, 1]
+    rd3 = desired[0:3, 2]
+
+    error = 0.5 * (np.cross(rc1, rd1) + np.cross(rc2, rd2) + np.cross(rc3, rd3))
+
+    return error
+
+def pose_to_pos_ori(pose):
+    pos = np.array([pose.position.x, pose.position.y, pose.position.z])
+    ori = Rotation.from_quat(np.array([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]))
+    return pos, ori
+
+def pos_ori_to_pose(pos, ori):
+    pose = Pose()
+    pose.position.x = pos[0]
+    pose.position.y = pos[1]
+    pose.position.z = pos[2]
+    quat = ori.as_quat()
+    pose.orientation.x = quat[0]
+    pose.orientation.y = quat[1]
+    pose.orientation.z = quat[2]
+    pose.orientation.w = quat[3]
+    return pose
+
+def move_arm(bot, target_pose, move_time=1):
+    DT=1/30
+    num_steps = int(move_time / DT)
+    curr_pose = bot.arm.core.joint_states.position[:6]
+    traj_list = np.linspace(curr_pose, target_pose, num_steps)
+    for t in range(num_steps):
+        bot.arm.set_joint_positions(traj_list[t], blocking=False)
+        time.sleep(DT)
+
+
+class ArmRobot(object):
+    def __init__(self):
+        
+        # Gains for the twist computation. These should be between 0 and 1. 0 means no
+        # movement, 1 means move the end-effector to the target in one integration step.
+        self.k_pos = 10.0
+        self.k_ori = 2.0
+        # Integration timestep in seconds. This corresponds to the amount of time the joint
+        # velocities will be integrated for to obtain the desired joint positions.
+        self.integration_dt = 0.1
+        # Damping term for the pseudoinverse. This is used to prevent joint velocities from
+        # becoming too large when the Jacobian is close to singular.
+        self.damping = 1.0e-4
+        # controller rate 
+        self.rate = 30
+        self.period = 1.0 / self.rate
+        # base link
+        self.base_link = "base_link"
+        # end effector link
+        self.ee_link = "ee_gripper_link"
+
+        # Init robot
+        self.robot_model = rospy.get_param("~robot_model")
+        self.robot_name = rospy.get_namespace().strip("/")
+        self.armbot = InterbotixManipulatorXS(robot_model=self.robot_model, group_name="arm", gripper_name="gripper", robot_name=self.robot_name, init_node=False)
+        self.armbot.dxl.robot_set_operating_modes("group", "arm", "position")
+        self.armbot.dxl.robot_torque_enable("group", "arm", True)
+        self.armbot.dxl.robot_reboot_motors("single", "gripper", True)
+        self.armbot.dxl.robot_set_operating_modes("single", "gripper", "pwm")
+        self.armbot.dxl.robot_torque_enable("single", "gripper", True)
+
+        # get robot info
+        self.num_joints = self.armbot.arm.group_info.num_joints
+        self.joint_lower_limits = np.array(self.armbot.arm.group_info.joint_lower_limits)
+        self.joint_upper_limits = np.array(self.armbot.arm.group_info.joint_upper_limits)
+        self.joint_velocity_limits = np.array(self.armbot.arm.group_info.joint_velocity_limits) * .95 # reduce velocity limits to avoid overshooting
+
+        # create FK and Jacobian solvers
+        ok, self.tree = kdl_parser.treeFromParam("robot_description")
+        if not ok:
+            raise RuntimeError("Failed to construct kdl tree from robot description")
+        chain_ee = self.tree.getChain(f'{self.robot_name}/{self.base_link}', f'{self.robot_name}/{self.ee_link}')
+        self.fk_ee = kdl.ChainFkSolverPos_recursive(chain_ee)
+        self.jac_ee = kdl.ChainJntToJacSolver(chain_ee)
+
+        # controller variables
+        self.pose_msg = None
+        self.pose_mutex = threading.Lock()
+        self.diag = self.damping * np.eye(self.num_joints)
+
+        # move to starting position
+        self.armbot.arm.go_to_sleep_pose(1.0, 0.5, True)
+        move_arm(self.armbot, [0, -0.5, 0.5, 0, 1.5, 0], 5.0)
+        # self.armbot.arm.set_joint_positions([0, -0.5, 0.5, 0, 1.5, 0], 5.0, 5.0, True)
+
+        # subscribe to target_ee_pose
+        rospy.Subscriber("target_ee_pose", PoseStamped, self.pose_cb)
+        # create ee_pose publisher
+        self.ee_pose_pub = rospy.Publisher("current_ee_pose", PoseStamped, queue_size=1)
+
+        rospy.Subscriber("gripper", Float64MultiArray, self.gripper_cb)
+
+        self.gripper_val = 0.0
+        self.gripper_mutex = threading.Lock()
+
+    def gripper_cb(self, msg):
+        with self.gripper_mutex:
+            self.gripper_val = msg.data[0]
+
+    # get the control rate
+    def get_rate(self):
+        return self.rate
+
+    # ROS Callback function that recieves ArmJoy messages
+    def pose_cb(self, msg):
+        with self.pose_mutex:
+            self.pose_msg = copy.deepcopy(msg)
+
+    # get the end effector pose
+    def get_ee_pose(self, joint_positions):
+        joint_array = kdl.JntArray(self.num_joints)
+        for i in range(self.num_joints):
+            joint_array[i] = joint_positions[i]
+
+        frame = kdl.Frame()
+        self.fk_ee.JntToCart(joint_array, frame)
+        
+        translation = np.array([frame.p.x(), frame.p.y(), frame.p.z()])
+        rotation = Rotation.from_quat(np.array(frame.M.GetQuaternion()))
+
+        return translation, rotation
+
+    # get the end effector jacobian
+    def get_ee_jacobian(self, joint_positions):
+        joint_array = kdl.JntArray(self.num_joints)
+        for i in range(self.num_joints):
+            joint_array[i] = joint_positions[i]
+
+        jacobian = kdl.Jacobian(self.num_joints)
+        self.jac_ee.JntToJac(joint_array, jacobian)
+
+        np_jacobian = np.zeros((jacobian.rows(), jacobian.columns()))
+        for i in range(jacobian.columns()):
+            for j in range(jacobian.rows()):
+                np_jacobian[j, i] = jacobian[j, i]
+
+        return np_jacobian
+
+    # Main control loop to manipulate the arm with differential IK
+    def run_controller(self):
+
+        # get pose message
+        with self.pose_mutex:
+            msg = copy.deepcopy(self.pose_msg)
+
+        # get current joint positions
+        q = self.armbot.arm.get_joint_commands()
+
+        # get current ee pose
+        current_pos, current_ori = self.get_ee_pose(q)
+
+        # publish current ee pose
+        ee_pose_msg = PoseStamped()
+        ee_pose_msg.header.stamp = rospy.Time.now()
+        ee_pose_msg.header.frame_id = f"{self.robot_name}/{self.base_link}"
+        ee_pose_msg.pose = pos_ori_to_pose(current_pos, current_ori)
+        self.ee_pose_pub.publish(ee_pose_msg)
+
+        # don't execute if no message
+        if msg is None:
+            return
+
+        # get target ee pose
+        target_pos, target_ori = pose_to_pos_ori(msg.pose)
+
+        # calculate spatial error
+        twist = np.zeros(6)
+        error_pos = target_pos - current_pos
+        twist[:3] = self.k_pos * error_pos
+        error_ori = orientation_error(target_ori.as_matrix(), current_ori.as_matrix())
+        twist[3:] = self.k_ori * error_ori
+
+        # Jacobian
+        jac = self.get_ee_jacobian(q)
+
+        # Solve for joint velocities: J * dq = twist using damped least squares.
+        dq = np.linalg.solve(jac.T @ jac + self.diag, jac.T @ twist)
+
+        # apply joint velocity limits
+        dq = np.clip(dq, -self.joint_velocity_limits, self.joint_velocity_limits)
+
+        # integrate joint velocities
+        new_q = q + dq * self.period
+
+        # apply joint position limits
+        new_q = np.clip(new_q, self.armbot.arm.group_info.joint_lower_limits, self.armbot.arm.group_info.joint_upper_limits)
+        
+        self.armbot.arm.set_joint_positions(new_q, self.period, self.period/2, False)
+
+        with self.gripper_mutex:
+            gripper_val = self.gripper_val
+
+        if gripper_val < 0.3:
+            self.armbot.gripper.open(delay=0)
+        else:
+            self.armbot.gripper.close(delay=0)
+
+
+def main():
+    rospy.init_node('xsarm_robot')
+    arm = ArmRobot()
+    rate = rospy.Rate(arm.get_rate())
+    while not rospy.is_shutdown():
+        arm.run_controller()
+        rate.sleep()
+
+if __name__=='__main__':
+    main()

@@ -1,0 +1,146 @@
+#!/usr/bin/env python
+
+import rospy
+from visualization_msgs.msg import Marker, InteractiveMarker, InteractiveMarkerControl
+from interactive_markers.interactive_marker_server import InteractiveMarkerServer
+from geometry_msgs.msg import PoseStamped, Pose
+from scipy.spatial.transform import Rotation as R
+import tf2_ros
+
+def interactive_marker_callback(feedback):
+    # This callback is called when the interactive marker is moved
+    pose = feedback.pose
+    rospy.loginfo("Marker moved to pose:\n{}".format(pose))
+
+    # Publish the pose stamped
+    pose_stamped = PoseStamped()
+    pose_stamped.header.stamp = rospy.Time.now()  # Set the current time as the timestamp
+    pose_stamped.header.frame_id = "vx300s/base_link"  # Replace with the appropriate frame_id
+    pose_stamped.pose = pose
+    pose_stamped_pub.publish(pose_stamped)
+
+def create_interactive_marker(initial_pose=None):
+    # Create an interactive marker
+    int_marker = InteractiveMarker()
+    int_marker.header.frame_id = "vx300s/base_link"
+    int_marker.name = "my_marker"
+    int_marker.description = "Interactive Marker"
+
+    # Set the initial pose if provided
+    if initial_pose:
+        int_marker.pose = initial_pose
+
+    fixed = False
+
+    # Create a marker control for translation and rotation
+    control = InteractiveMarkerControl()
+    control.orientation.w = 1
+    control.orientation.x = 1
+    control.orientation.y = 0
+    control.orientation.z = 0
+    control.interaction_mode = InteractiveMarkerControl.MOVE_ROTATE_3D
+    # Create a visual marker for translation and rotation
+    marker = Marker()
+    marker.type = Marker.SPHERE
+    marker.scale.x = 0.1
+    marker.scale.y = 0.1
+    marker.scale.z = 0.1
+    marker.color.r = 1.0
+    marker.color.g = 1.0
+    marker.color.b = 0.0
+    marker.color.a = 1.0
+    # Set the control marker for translation and rotation
+    control.markers.append(marker)
+    control.always_visible = True
+    int_marker.controls.append(control)
+
+    control = InteractiveMarkerControl()
+    control.orientation.w = 1
+    control.orientation.x = 1
+    control.orientation.y = 0
+    control.orientation.z = 0
+    control.name = "rotate_x"
+    control.interaction_mode = InteractiveMarkerControl.ROTATE_AXIS
+    if fixed:
+        control.orientation_mode = InteractiveMarkerControl.FIXED
+    int_marker.controls.append(control)
+
+    control = InteractiveMarkerControl()
+    control.orientation.w = 1
+    control.orientation.x = 1
+    control.orientation.y = 0
+    control.orientation.z = 0
+    control.name = "move_x"
+    control.interaction_mode = InteractiveMarkerControl.MOVE_AXIS
+    if fixed:
+        control.orientation_mode = InteractiveMarkerControl.FIXED
+    int_marker.controls.append(control)
+
+    control = InteractiveMarkerControl()
+    control.orientation.w = 1
+    control.orientation.x = 0
+    control.orientation.y = 1
+    control.orientation.z = 0
+    control.name = "rotate_z"
+    control.interaction_mode = InteractiveMarkerControl.ROTATE_AXIS
+    if fixed:
+        control.orientation_mode = InteractiveMarkerControl.FIXED
+    int_marker.controls.append(control)
+
+    control = InteractiveMarkerControl()
+    control.orientation.w = 1
+    control.orientation.x = 0
+    control.orientation.y = 1
+    control.orientation.z = 0
+    control.name = "move_z"
+    control.interaction_mode = InteractiveMarkerControl.MOVE_AXIS
+    if fixed:
+        control.orientation_mode = InteractiveMarkerControl.FIXED
+    int_marker.controls.append(control)
+
+    control = InteractiveMarkerControl()
+    control.orientation.w = 1
+    control.orientation.x = 0
+    control.orientation.y = 0
+    control.orientation.z = 1
+    control.name = "rotate_y"
+    control.interaction_mode = InteractiveMarkerControl.ROTATE_AXIS
+    if fixed:
+        control.orientation_mode = InteractiveMarkerControl.FIXED
+    int_marker.controls.append(control)
+
+    control = InteractiveMarkerControl()
+    control.orientation.w = 1
+    control.orientation.x = 0
+    control.orientation.y = 0
+    control.orientation.z = 1
+    control.name = "move_y"
+    control.interaction_mode = InteractiveMarkerControl.MOVE_AXIS
+    if fixed:
+        control.orientation_mode = InteractiveMarkerControl.FIXED
+    int_marker.controls.append(control)
+   
+    return int_marker
+
+if __name__ == '__main__':
+    rospy.init_node('pose_interactive_marker')
+
+    # Get the robot name from the namespace
+    robot_name = rospy.get_namespace().strip("/")
+
+    # Wait for current_ee_pose msg to be published and retreive msg
+    current_ee_pose = rospy.wait_for_message('current_ee_pose', PoseStamped)
+    
+    # Publisher for the PoseStamped message
+    pose_stamped_pub = rospy.Publisher('target_ee_pose', PoseStamped, queue_size=1)
+
+    # Create an interactive marker
+    int_marker = create_interactive_marker(current_ee_pose.pose)
+
+    # Create a marker server
+    server = InteractiveMarkerServer("pose_marker_server")
+    server.insert(int_marker, interactive_marker_callback)
+    server.applyChanges()
+
+    # Spin to keep the script alive
+    rospy.spin()
