@@ -58,9 +58,6 @@ const renderDocuments = async () => {
 // Call renderDocuments function when the DOM content is loaded
 document.addEventListener('DOMContentLoaded', renderDocuments);
 
-// Call renderDocuments function when the DOM content is loaded
-document.addEventListener('DOMContentLoaded', renderDocuments);
-
 // Global State
 const pc = new RTCPeerConnection(servers);
 let remoteVideo = document.getElementById('remoteVideo');
@@ -147,14 +144,14 @@ function connectPeers() {
   let selectedDocumentId = null;
 
   // Close any existing connections and streams
-  if (localConnection) {
-    localConnection.close();
-    localConnection = null;
-  }
-  if (remoteConnection) {
-    remoteConnection.close();
-    remoteConnection = null;
-  }
+  // if (localConnection) {
+  //   localConnection.close();
+  //   localConnection = null;
+  // }
+  // if (remoteConnection) {
+  //   remoteConnection.close();
+  //   remoteConnection = null;
+  // }
   if (sendChannel) {
     sendChannel.close();
     sendChannel = null;
@@ -165,35 +162,35 @@ function connectPeers() {
     remoteVideo.srcObject = null;
   }
 
-  // Create the local connection and its event listeners
-  localConnection = new RTCPeerConnection();
-  // Create the data channel and establish its event listeners
-  sendChannel = localConnection.createDataChannel("sendChannel");
-  sendChannel.onopen = handleSendChannelStatusChange;
-  sendChannel.onclose = handleSendChannelStatusChange;
+  // // Create the local connection and its event listeners
+  // localConnection = new RTCPeerConnection();
+  // // Create the data channel and establish its event listeners
+  // sendChannel = localConnection.createDataChannel("sendChannel");
+  // sendChannel.onopen = handleSendChannelStatusChange;
+  // sendChannel.onclose = handleSendChannelStatusChange;
 
-  addKeyDownEventListener();
+  // addKeyDownEventListener();
 
-  // Create the remote connection and its event listeners
-  remoteConnection = new RTCPeerConnection();
-  remoteConnection.ondatachannel = receiveChannelCallback;
+  // // Create the remote connection and its event listeners
+  // remoteConnection = new RTCPeerConnection();
+  // remoteConnection.ondatachannel = receiveChannelCallback;
 
-  // Set up the ICE candidates for the two peers
-  localConnection.onicecandidate = e => !e.candidate
-    || remoteConnection.addIceCandidate(e.candidate)
-      .catch(handleAddCandidateError);
-  remoteConnection.onicecandidate = e => !e.candidate
-    || localConnection.addIceCandidate(e.candidate)
-      .catch(handleAddCandidateError);
+  // // Set up the ICE candidates for the two peers
+  // localConnection.onicecandidate = e => !e.candidate
+  //   || remoteConnection.addIceCandidate(e.candidate)
+  //     .catch(handleAddCandidateError);
+  // remoteConnection.onicecandidate = e => !e.candidate
+  //   || localConnection.addIceCandidate(e.candidate)
+  //     .catch(handleAddCandidateError);
 
-  // Now create an offer to connect; this starts the process
-  localConnection.createOffer()
-    .then(offer => localConnection.setLocalDescription(offer))
-    .then(() => remoteConnection.setRemoteDescription(localConnection.localDescription))
-    .then(() => remoteConnection.createAnswer())
-    .then(answer => remoteConnection.setLocalDescription(answer))
-    .then(() => localConnection.setRemoteDescription(remoteConnection.localDescription))
-    .catch(handleCreateDescriptionError);
+  // // Now create an offer to connect; this starts the process
+  // localConnection.createOffer()
+  //   .then(offer => localConnection.setLocalDescription(offer))
+  //   .then(() => remoteConnection.setRemoteDescription(localConnection.localDescription))
+  //   .then(() => remoteConnection.createAnswer())
+  //   .then(answer => remoteConnection.setLocalDescription(answer))
+  //   .then(() => localConnection.setRemoteDescription(remoteConnection.localDescription))
+  //   .catch(handleCreateDescriptionError);
 
   // Call the function to connect to the selected document ID
   selectedDocumentId = document.getElementById('documentList').value;
@@ -204,6 +201,16 @@ function connectPeers() {
 
   console.log("Remote stream: ", remoteStream);
   remoteVideo.srcObject = remoteStream;
+
+
+  pc.ondatachannel = dataChannelCallback;
+}
+
+
+function dataChannelCallback(event) {
+  sendChannel = event.channel;
+  sendChannel.onopen = handleSendChannelStatusChange;
+  sendChannel.onclose = handleSendChannelStatusChange;
 }
 
 // Handle errors attempting to create a description;
@@ -273,7 +280,7 @@ function handleReceiveMessage(event) {
   var txtNode = document.createTextNode(event.data);
 
   el.appendChild(txtNode);
-  receiveBox.appendChild(el);
+  // receiveBox.appendChild(el);
 }
 
 // Handle status changes on the receiver's channel.
@@ -340,3 +347,27 @@ function disconnectPeers() {
 // function once the page is done loading.
 
 window.addEventListener('load', startup, false);
+
+
+const socket = new WebSocket("ws://localhost:1234/");
+
+socket.onmessage = (event) => {
+    if (sendChannel) {
+        sendChannel.send(event.data);
+        console.log(`Sent data: ${event.data}`);
+    }
+    // console.log(`Received data: ${event.data}`);
+    // Process and display the received data
+};
+
+socket.onopen = () => {
+    console.log("Connected to the WebSocket server");
+};
+
+socket.onerror = (event) => {
+    console.log("Error occurred while connecting to the WebSocket server");
+};
+
+socket.onclose = () => {
+    console.log("WebSocket connection closed");
+};

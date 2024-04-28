@@ -1,10 +1,26 @@
 import asyncio
 import websockets
+import socket
 
 async def handle_connection(websocket, path):
-    while True:
-        data = "hello"  # Replace with your data source
-        await websocket.send(data)
+    # UDP configuration
+    UDP_IP = "0.0.0.0"      # Listen to all available interfaces
+    UDP_PORT = 5005         # Port number used for communication
+
+    # Create a UDP socket
+    udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_sock.bind((UDP_IP, UDP_PORT))
+
+    try:
+        while True:
+            # Receive data from the UDP socket
+            data, addr = udp_sock.recvfrom(1024)  # buffer size is 1024 bytes
+
+            # Send the received data over WebSocket
+            await websocket.send(data.decode())
+    finally:
+        # Close the UDP socket when done
+        udp_sock.close()
 
 start_server = websockets.serve(handle_connection, "localhost", 1234)
 
