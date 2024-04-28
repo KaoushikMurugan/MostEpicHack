@@ -25,6 +25,7 @@ const servers = {
 const pc = new RTCPeerConnection(servers);
 let localStream = null;
 let callId = null;
+var sendChannel = null;
 
 // HTML elements
 const webcamButton = document.getElementById('webcamButton');
@@ -34,6 +35,17 @@ const endConnectionButton = document.getElementById('endConnectionButton');
 // 1. Setup media sources
 
 webcamButton.onclick = async () => {
+  // Create the data channel and establish its event listeners
+  sendChannel = pc.createDataChannel("sendChannel");
+  sendChannel.addEventListener("open", handleSendChannelStatusChange);
+  sendChannel.onclose = handleSendChannelStatusChange;
+  sendChannel.onmessage = (event) => {
+    console.log("Message received: " + event.data);
+  };
+
+  console.log("Data channel created");
+
+
   localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
   // Push tracks from local stream to peer connection
@@ -92,7 +104,9 @@ startUpConnectionButton.onclick = async () => {
     snapshot.docChanges().forEach((change) => {
       if (change.type === 'added') {
         const candidate = new RTCIceCandidate(change.doc.data());
-        pc.addIceCandidate(candidate);
+        if (pc.currentRemoteDescription) {
+          pc.addIceCandidate(candidate);
+        }
       }
     });
   });
@@ -121,4 +135,20 @@ endConnectionButton.onclick = async () => {
 
   await callDoc.delete();
   callId = null;
+}
+
+function handleSendChannelStatusChange(event) {
+  if (sendChannel) {
+    var state = sendChannel.readyState;
+
+    if (state === "open") {
+      console.log("Data channel is open and ready to be used.");
+    } else {
+      console.log("Data channel is not open.");
+    }
+  }
+}
+
+function sendMessage() {
+  sendChannel.send("Hello from the sender!");
 }

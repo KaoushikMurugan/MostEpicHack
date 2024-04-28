@@ -25,14 +25,22 @@ const servers = {
 const pc = new RTCPeerConnection(servers);
 let localStream = null;
 let remoteStream = null;
-var sendChannel = null;
-let callId = null;
+let receiveChannel = null;
+let callId = "robot-1";
+
+
+
 
 // HTML elements
 const webcamButton = document.getElementById('webcamButton');
 const webcamVideo = document.getElementById('webcamVideo');
 const answerButton = document.getElementById('answerButton');
 const remoteVideo = document.getElementById('remoteVideo');
+const hangupButton = document.getElementById('hangupButton');
+
+
+
+
 
 // Fetch documents from Firestore collection
 const renderDocuments = async () => {
@@ -63,6 +71,12 @@ document.addEventListener('DOMContentLoaded', renderDocuments);
 // 1. Setup media sources
 
 webcamButton.onclick = async () => {
+
+  pc.ondatachannel = receiveChannelCallback;
+
+  
+
+
   localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
   remoteStream = new MediaStream();
 
@@ -84,12 +98,10 @@ webcamButton.onclick = async () => {
   answerButton.disabled = false;
   webcamButton.disabled = true;
 
+  console.log("Local stream added to peer connection");
 
-  // Create the data channel and establish its event listeners
-  sendChannel = pc.createDataChannel("sendChannel");
-  sendChannel.onopen = handleSendChannelStatusChange;
-  sendChannel.onclose = handleSendChannelStatusChange;
-  hangupButton.addEventListener('click', sendMessage, false);
+
+  
 };
 
 // 3. Answer the call with the unique ID
@@ -126,24 +138,38 @@ answerButton.onclick = async () => {
       }
     });
   });
+  hangupButton.disabled = false;
 };
 
 
 
-function handleSendChannelStatusChange(event) {
-  if (sendChannel) {
-    var state = sendChannel.readyState;
 
-    if (state === "open") {
-      console.log("Data channel is open and ready to be used.");
-    } else {
-      console.log("Data channel is not open.");
-    }
-  }
+
+
+function receiveChannelCallback(event) {
+  receiveChannel = event.channel;
+  receiveChannel.onmessage = handleReceiveMessage;
+  receiveChannel.onopen = handleReceiveChannelStatusChange;
+  receiveChannel.onclose = handleReceiveChannelStatusChange;
+  hangupButton.addEventListener('click', (event) => {
+    console.log('Hangup clicked');
+    receiveChannel.send('Bye');
+  });
 }
 
-function sendMessage() {
-  sendChannel.send("Hello from the sender!");
+function handleReceiveMessage(event) {
+  console.log(message);
+}
+
+// Handle status changes on the receiver's channel.
+
+function handleReceiveChannelStatusChange(event) {
+  if (receiveChannel) {
+    console.log("Receive channel's status has changed to " +
+                receiveChannel.readyState);
+  }
+  // Here you would do stuff that needs to be done
+  // when the channel's status changes.
 }
 
 
