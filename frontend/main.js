@@ -21,7 +21,9 @@ const firestore = firebase.firestore();
 const servers = {
   iceServers: [
     {
-      urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'],
+      urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302', 'turn:global.relay.metered.ca:80'],
+      username: '1adabb60af229cd01f08527e',
+      credential: 'pdPQOuZxLH+hV2yR'
     },
   ],
   iceCandidatePoolSize: 10,
