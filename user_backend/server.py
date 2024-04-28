@@ -4,8 +4,8 @@ import socket
 
 async def handle_connection(websocket, path):
     # UDP configuration
-    UDP_IP = "0.0.0.0"      # Listen to all available interfaces
-    UDP_PORT = 5005         # Port number used for communication
+    UDP_IP = "localhost"      # Listen to all available interfaces
+    UDP_PORT = 5555         # Port number used for communication
 
     # Create a UDP socket
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -15,6 +15,8 @@ async def handle_connection(websocket, path):
         while True:
             # Receive data from the UDP socket
             data, addr = udp_sock.recvfrom(1024)  # buffer size is 1024 bytes
+
+            # print(data)
 
             # Send the received data over WebSocket
             await websocket.send(data.decode())

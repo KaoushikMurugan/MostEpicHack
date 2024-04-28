@@ -211,6 +211,7 @@ function dataChannelCallback(event) {
   sendChannel = event.channel;
   sendChannel.onopen = handleSendChannelStatusChange;
   sendChannel.onclose = handleSendChannelStatusChange;
+  console.log("Data channel is open");
 }
 
 // Handle errors attempting to create a description;
@@ -356,7 +357,7 @@ socket.onmessage = (event) => {
         sendChannel.send(event.data);
         console.log(`Sent data: ${event.data}`);
     }
-    // console.log(`Received data: ${event.data}`);
+    console.log(`Received data: ${event.data}`);
     // Process and display the received data
 };
 
