@@ -43,6 +43,30 @@ const answerButton = document.getElementById('answerButton');
 const remoteVideo = document.getElementById('remoteVideo');
 const hangupButton = document.getElementById('hangupButton');
 
+// Fetch documents from Firestore collection
+const renderDocuments = async () => {
+  const collectionRef = firestore.collection('calls');
+  const querySnapshot = await collectionRef.get();
+
+  // Get document IDs and log them in the console
+  const documentIDs = querySnapshot.docs.map(doc => doc.id);
+  console.log(documentIDs);
+
+  // Clear previous data
+  const documentListElement = document.getElementById('documentList');
+  documentListElement.innerHTML = '';
+
+  // Render documents
+  documentIDs.forEach(documentData => {
+    const listItem = document.createElement('li');
+    listItem.textContent = JSON.stringify(documentData);
+    documentListElement.appendChild(listItem);
+  });
+};
+
+// Call renderDocuments function when the DOM content is loaded
+document.addEventListener('DOMContentLoaded', renderDocuments);
+
 // 1. Setup media sources
 
 webcamButton.onclick = async () => {
@@ -152,3 +176,63 @@ answerButton.onclick = async () => {
     });
   });
 };
+
+// 4. Establish a data channel
+let dataChannel;
+
+// Function to create a data channel
+const createDataChannel = () => {
+
+  console.log('Creating data channel...');
+
+  dataChannel = pc.createDataChannel('json-data-channel');
+
+  // Event listener for when the data channel is opened
+  dataChannel.onopen = () => {
+    console.log('Data channel opened');
+  };
+
+  // Event listener for when the data channel receives a message
+  dataChannel.onmessage = (event) => {
+    const jsonData = JSON.parse(event.data);
+    console.log('Received JSON data:', jsonData);
+    // Handle received JSON data as needed
+  };
+};
+
+// Call createDataChannel function after peer connection is created
+pc.onnegotiationneeded = async () => {
+  await pc.setLocalDescription(await pc.createOffer());
+  const offer = { sdp: pc.localDescription.toJSON(), type: pc.localDescription.type };
+  await callDoc.set({ offer });
+  // Create data channel after setting the local description
+  createDataChannel();
+};
+
+// Event listener for when a new data channel is created
+pc.ondatachannel = (event) => {
+  dataChannel = event.channel;
+  dataChannel.onopen = () => {
+    console.log('Data channel opened');
+  };
+  dataChannel.onmessage = (event) => {
+    const jsonData = JSON.parse(event.data);
+    console.log('Received JSON data:', jsonData);
+    // Handle received JSON data as needed
+  };
+};
+
+// Function to send JSON data over the data channel
+const sendJsonData = (data) => {
+  console.log(dataChannel);
+  if (dataChannel && dataChannel.readyState === 'open') {
+    const jsonData = JSON.stringify(data);
+    dataChannel.send(jsonData);
+    console.log('Sent JSON data:', jsonData);
+  } else {
+    console.error('Data channel is not open or not available');
+  }
+};
+
+// Example usage: sending JSON data
+sendJsonData({ key: 'value' });
