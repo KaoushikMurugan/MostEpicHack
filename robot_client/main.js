@@ -26,6 +26,7 @@ const pc = new RTCPeerConnection(servers);
 let localStream = null;
 let callId = null;
 var sendChannel = null;
+var socket = null;
 
 // HTML elements
 const webcamButton = document.getElementById('webcamButton');
@@ -35,16 +36,21 @@ const endConnectionButton = document.getElementById('endConnectionButton');
 // 1. Setup media sources
 
 webcamButton.onclick = async () => {
+  // Create a WebSocket connection
+  socket = new WebSocket("ws://localhost:1235/");
   // Create the data channel and establish its event listeners
   sendChannel = pc.createDataChannel("sendChannel");
   sendChannel.addEventListener("open", handleSendChannelStatusChange);
   sendChannel.onclose = handleSendChannelStatusChange;
   sendChannel.onmessage = (event) => {
     console.log("Message received: " + event.data);
+    if (socket !== null) {
+      // Send data to the WebSocket server
+      socket.send("Hello from the browser!");
+    }
   };
 
   console.log("Data channel created");
-
 
   localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
@@ -58,6 +64,7 @@ webcamButton.onclick = async () => {
   startUpConnectionButton.disabled = false;
   endConnectionButton.disabled = false;
   webcamButton.disabled = true;
+
 };
 
 // 2. Create an offer
