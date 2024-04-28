@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap');
 
 body {
+  background-color: #FFBF00;
   font-family: 'Roboto', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -12,16 +13,23 @@ body {
 
 .container {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
+  align-items: center;
 }
 
 .video-panel {
-  flex: 1;
-  padding: 20px;
+  display: flex;
+  justify-content: center;
+  margin-top: 50px;
+  padding: 0px;
   border-radius: 20px;
   /* Adjust the value as needed */
   overflow: hidden;
   /* Ensures the video is clipped to the rounded shape */
+  height: 60vh;
+  /* Adjust the height as needed */
+  box-shadow: 0 0 200px rgba(0, 0, 0, 1);
+  /* Soft shadow effect */
 }
 
 .video-panel h2 {
@@ -40,7 +48,8 @@ video {
 .controls {
   flex: 1;
   padding: 20px;
-  background-color: #f1f1f1;
+  border-radius: 20px;
+  background-color: #f2f2f2;
 }
 
 .controls h2 {
@@ -56,6 +65,7 @@ video {
 .button-group {
   display: flex;
   margin-top: 10px;
+  align-items: center;
 }
 
 .connect-button {
@@ -65,7 +75,7 @@ video {
   background-color: #4CAF50;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   margin-right: 10px;
 }
 
@@ -76,7 +86,7 @@ video {
   background-color: #f44336;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
 }
 
 button:last-child {

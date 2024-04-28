@@ -76,9 +76,10 @@ startUpConnectionButton.onclick = async () => {
     type: offerDescription.type,
   };
 
+  // Write offer to Firestore document
   await callDoc.set({ offer });
 
-  // Listen for remote answer
+  // Listen for remote answer after offer is successfully written to Firestore
   callDoc.onSnapshot((snapshot) => {
     const data = snapshot.data();
     if (!pc.currentRemoteDescription && data?.answer) {
@@ -93,6 +94,9 @@ startUpConnectionButton.onclick = async () => {
       if (change.type === 'added') {
         const candidate = new RTCIceCandidate(change.doc.data());
         pc.addIceCandidate(candidate);
+      }
+      else {
+        console.log("Change type: ", change.type);
       }
     });
   });

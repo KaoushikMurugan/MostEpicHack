@@ -1,23 +1,100 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap');
 
 body {
-  font-family: 'Syne Mono', monospace;
+  font-family: 'Roboto', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: #2c3e50;
-  margin: 80px 10px;
+  background-color: #FFBF00;
+  margin: 0;
+  padding: 0;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.video-panel {
+  display: flex;
+  justify-content: center;
+  margin-top: 50px;
+  padding: 0px;
+  border-radius: 20px;
+  /* Adjust the value as needed */
+  overflow: hidden;
+  /* Ensures the video is clipped to the rounded shape */
+  height: 60vh;
+  /* Adjust the height as needed */
+  box-shadow: 0 0 200px rgba(0, 0, 0, 1);
+  /* Soft shadow effect */
+}
+
+.video-panel h2 {
+  margin-top: 0;
 }
 
 video {
-  width: 40vw;
-  height: 30vw;
-  margin: 2rem;
+  max-width: 100%;
+  max-width: 100%;
+  width: auto;
+  height: auto;
   background: #2c3e50;
+  border-radius: 20px;
+  /* Adjust the value to match the container's border-radius */
 }
 
-.videos {
+.controls {
+  flex: 1;
+  padding: 20px;
+  background-color: #f1f1f1;
+  border-radius: 20px;
+}
+
+.controls h2 {
+  margin-top: 0;
+}
+
+.control-group {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+}
+
+.button-group {
+  display: flex;
+  margin-top: 10px;
+}
+
+.connect-button {
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  margin-right: 10px;
+}
+
+.disconnect-button {
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 8px;
+}
+
+button:last-child {
+  margin-right: 0;
+  /* Remove margin for the last button */
+}
+
+button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
 }

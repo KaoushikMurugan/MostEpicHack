@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/svg+xml" href="./robot-arm.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WebRTC Demo</title>
   <link rel="stylesheet" type="text/css" href="style.css">
@@ -11,21 +11,19 @@
 
 <body>
   <div class="container">
+    <div class="video-panel">
+      <video id="remoteVideo" autoplay playsinline></video>
+    </div>
     <div class="controls">
-      <h2>Controls</h2>
       <div class="control-group">
         <select id="documentList">
-          <!-- Dropdown options will be populated dynamically -->
+          <!-- Other options will be populated dynamically -->
         </select>
-        <div class="button-group">
-          <button id="connectButton" class="connect-button">Connect</button>
-          <button id="disconnectButton" class="disconnect-button">Disconnect</button>
-        </div>
       </div>
-    </div>
-    <div class="video-panel">
-      <h2>Camera View</h2>
-      <video id="remoteVideo" autoplay playsinline></video>
+      <div class="button-group">
+        <button id="connectButton" class="connect-button">Connect</button>
+        <button id="disconnectButton" class="disconnect-button">Disconnect</button>
+      </div>
     </div>
   </div>
 

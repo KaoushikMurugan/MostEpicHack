@@ -35,6 +35,14 @@ const renderDocuments = async () => {
     const documentListElement = document.getElementById('documentList');
     documentListElement.innerHTML = '';
 
+    // Create and add the default option
+    const defaultOption = document.createElement('option');
+    defaultOption.value = ''; // Optionally, you can set a value for the default option
+    defaultOption.textContent = '>>>---- SELECT ROBOT ----<<<';
+    defaultOption.disabled = true;
+    defaultOption.selected = true; // Make this option selected
+    documentListElement.appendChild(defaultOption);
+
     // Render documents
     documentIDs.forEach(documentID => {
       const option = document.createElement('option');
@@ -55,7 +63,7 @@ document.addEventListener('DOMContentLoaded', renderDocuments);
 
 // Global State
 const pc = new RTCPeerConnection(servers);
-const remoteVideo = document.getElementById('remoteVideo');
+let remoteVideo = document.getElementById('remoteVideo');
 
 var connectButton = null;
 var disconnectButton = null;
@@ -101,6 +109,7 @@ function keydownListener(event) {
 
 // Function to connect to a selected document ID
 const connectToDocument = async (documentId) => {
+  console.log('Connecting to document:', documentId);
   const callDoc = firestore.collection('calls').doc(documentId);
   const answerCandidates = callDoc.collection('answerCandidates');
   const offerCandidates = callDoc.collection('offerCandidates');
@@ -135,35 +144,49 @@ const connectToDocument = async (documentId) => {
 };
 
 function connectPeers() {
+  let selectedDocumentId = null;
+
+  // Close any existing connections and streams
+  if (localConnection) {
+    localConnection.close();
+    localConnection = null;
+  }
+  if (remoteConnection) {
+    remoteConnection.close();
+    remoteConnection = null;
+  }
+  if (sendChannel) {
+    sendChannel.close();
+    sendChannel = null;
+  }
+  if (remoteStream) {
+    remoteStream.getTracks().forEach(track => track.stop());
+    remoteStream = null;
+    remoteVideo.srcObject = null;
+  }
+
   // Create the local connection and its event listeners
-
   localConnection = new RTCPeerConnection();
-
   // Create the data channel and establish its event listeners
   sendChannel = localConnection.createDataChannel("sendChannel");
   sendChannel.onopen = handleSendChannelStatusChange;
   sendChannel.onclose = handleSendChannelStatusChange;
 
-
   addKeyDownEventListener();
 
   // Create the remote connection and its event listeners
-
   remoteConnection = new RTCPeerConnection();
   remoteConnection.ondatachannel = receiveChannelCallback;
 
   // Set up the ICE candidates for the two peers
-
   localConnection.onicecandidate = e => !e.candidate
     || remoteConnection.addIceCandidate(e.candidate)
       .catch(handleAddCandidateError);
-
   remoteConnection.onicecandidate = e => !e.candidate
     || localConnection.addIceCandidate(e.candidate)
       .catch(handleAddCandidateError);
 
   // Now create an offer to connect; this starts the process
-
   localConnection.createOffer()
     .then(offer => localConnection.setLocalDescription(offer))
     .then(() => remoteConnection.setRemoteDescription(localConnection.localDescription))
@@ -173,19 +196,13 @@ function connectPeers() {
     .catch(handleCreateDescriptionError);
 
   // Call the function to connect to the selected document ID
-  const selectedDocumentId = document.getElementById('documentList').value;
+  selectedDocumentId = document.getElementById('documentList').value;
   connectToDocument(selectedDocumentId);
 
-  // connect to the remote peer's camera
-  remoteStream = new MediaStream();
-
   // Pull tracks from remote stream, add to video stream
-  pc.ontrack = (event) => {
-    event.streams[0].getTracks().forEach((track) => {
-      remoteStream.addTrack(track);
-    });
-  };
+  pc.ontrack = handleTrackEvent;
 
+  console.log("Remote stream: ", remoteStream);
   remoteVideo.srcObject = remoteStream;
 }
 
@@ -271,6 +288,18 @@ function handleReceiveChannelStatusChange(event) {
   // when the channel's status changes.
 }
 
+// Define the callback function to handle incoming tracks
+
+function handleTrackEvent(event) {
+  console.log("Track event fired");
+  // Add track to remote stream
+  if (!remoteStream) {
+    remoteStream = new MediaStream();
+    remoteVideo.srcObject = remoteStream;
+  }
+  remoteStream.addTrack(event.track);
+}
+
 // Close the connection, including data channels if they're open.
 // Also update the UI to reflect the disconnected status.
 
@@ -285,6 +314,16 @@ function disconnectPeers() {
 
   localConnection.close();
   remoteConnection.close();
+
+  // Stop the tracks in the remoteStream
+  if (remoteStream) {
+    remoteStream.getTracks().forEach(track => track.stop());
+  }
+
+  pc.ontrack = null;
+
+  // Clear the srcObject of the remoteVideo element
+  remoteVideo.srcObject = null;
 
   sendChannel = null;
   receiveChannel = null;
