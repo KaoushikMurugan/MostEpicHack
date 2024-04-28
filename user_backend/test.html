@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>UDP Stream</title>
+  </head>
+  <body>
+    <h1>UDP Stream</h1>
+    <div id="output"></div>
+    <script>
+      const socket = new WebSocket("ws://localhost:1234/");
+
+        socket.onmessage = (event) => {
+            console.log(`Received data: ${event.data}`);
+            // Process and display the received data
+        };
+
+        socket.onopen = () => {
+            console.log("Connected to the WebSocket server");
+        };
+
+        socket.onerror = (event) => {
+            console.log("Error occurred while connecting to the WebSocket server");
+        };
+
+        socket.onclose = () => {
+            console.log("WebSocket connection closed");
+        };
+    </script>
+  </body>
+</html>
