@@ -14,8 +14,8 @@ const servers = {
   iceServers: [
     {
       urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302', 'turn:global.relay.metered.ca:80'],
-      username: '1adabb60af229cd01f08527e',
-      credential: 'pdPQOuZxLH+hV2yR'
+      username: '44c9631bd1b19bfc2e7a0033',
+      credential: 'XvPuyryKqj39K2AO'
     },
   ],
   iceCandidatePoolSize: 10,
