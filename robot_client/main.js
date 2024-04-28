@@ -37,7 +37,7 @@ const endConnectionButton = document.getElementById('endConnectionButton');
 
 webcamButton.onclick = async () => {
   // Create a WebSocket connection
-  socket = new WebSocket("ws://localhost:1235/");
+  socket = new WebSocket("ws://localhost:1240/");
   // Create the data channel and establish its event listeners
   sendChannel = pc.createDataChannel("sendChannel");
   sendChannel.addEventListener("open", handleSendChannelStatusChange);
@@ -46,7 +46,7 @@ webcamButton.onclick = async () => {
     console.log("Message received: " + event.data);
     if (socket !== null) {
       // Send data to the WebSocket server
-      socket.send("Hello from the browser!");
+      socket.send(event.data);
     }
   };
 
