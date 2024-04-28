@@ -6,36 +6,29 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WebRTC Demo</title>
+  <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 
 <body>
-  <h2>List of Documents</h2>
-  <ul id="documentList"></ul>
-
-  <h2>1. Start your Webcam</h2>
-  <div class="videos">
-    <span>
-      <h3>Local Stream</h3>
+  <div class="container">
+    <div class="controls">
+      <h2>Controls</h2>
+      <div class="control-group">
+        <select id="documentList">
+          <!-- Dropdown options will be populated dynamically -->
+        </select>
+        <div class="button-group">
+          <button id="connectButton">Connect</button>
+          <button id="disconnectButton" disabled>Disconnect</button>
+        </div>
+      </div>
+    </div>
+    <div class="video-panel">
+      <h2>Camera View</h2>
       <video id="webcamVideo" autoplay playsinline></video>
-    </span>
-    <span>
-      <h3>Remote Stream</h3>
-      <video id="remoteVideo" autoplay playsinline></video>
-    </span>
+    </div>
   </div>
 
-  <button id="webcamButton">Start webcam</button>
-  <h2>2. Create a new Call</h2>
-  <button id="callButton" disabled>Create Call (offer)</button>
-
-  <h2>3. Join a Call</h2>
-  <p>Answer the call from a different browser window or device</p>
-
-  <input id="callInput" />
-  <button id="answerButton" disabled>Answer</button>
-
-  <h2>4. Hangup</h2>
-  <button id="hangupButton" disabled>Hangup</button>
 
   <script type="module" src="/main.js"></script>
 </body>

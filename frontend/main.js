@@ -39,19 +39,24 @@ const renderDocuments = async () => {
   const collectionRef = firestore.collection('calls');
   const querySnapshot = await collectionRef.get();
 
-  // Get document IDs and log them in the console
-  const documentIDs = querySnapshot.docs.map(doc => doc.id);
-  console.log(documentIDs);
+  // Get document data
+  const documents = querySnapshot.docs.map(doc => {
+    return {
+      id: doc.id,
+      data: doc.data()
+    };
+  });
 
   // Clear previous data
   const documentListElement = document.getElementById('documentList');
   documentListElement.innerHTML = '';
 
-  // Render documents
-  documentIDs.forEach(documentData => {
-    const listItem = document.createElement('li');
-    listItem.textContent = JSON.stringify(documentData);
-    documentListElement.appendChild(listItem);
+  // Render documents as options in the dropdown menu
+  documents.forEach(document => {
+    const option = document.createElement('option');
+    option.value = document.id;
+    option.textContent = document.data.name; // Assuming the document has a 'name' field
+    documentListElement.appendChild(option);
   });
 };
 

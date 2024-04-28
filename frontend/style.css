@@ -1,23 +1,115 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap');
 
 body {
-  font-family: 'Syne Mono', monospace;
+  font-family: 'Roboto', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: #2c3e50;
-  margin: 80px 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.container {
+  display: flex;
+  flex-direction: row;
+}
+
+.video-panel {
+  flex: 1;
+  padding: 20px;
+  border-radius: 20px;
+  /* Adjust the value as needed */
+  overflow: hidden;
+  /* Ensures the video is clipped to the rounded shape */
+}
+
+.video-panel h2 {
+  margin-top: 0;
 }
 
 video {
-  width: 40vw;
-  height: 30vw;
-  margin: 2rem;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
   background: #2c3e50;
+  border-radius: 20px;
+  /* Adjust the value to match the container's border-radius */
 }
 
-.videos {
+.controls {
+  flex: 1;
+  padding: 20px;
+  background-color: #f1f1f1;
+}
+
+.controls h2 {
+  margin-top: 0;
+}
+
+.control-group {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+}
+
+.button-group {
+  display: flex;
+  margin-top: 10px;
+}
+
+button {
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  margin-right: 10px;
+}
+
+button:last-child {
+  margin-right: 0;
+  /* Remove margin for the last button */
+}
+
+button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* Style for dropdown menu */
+select#documentList {
+  width: 100%;
+  padding: 10px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  appearance: none;
+  /* Remove default dropdown arrow */
+  background-color: transparent;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="#2c3e50"><path d="M7 10l5 5 5-5z"/></svg>');
+  /* Custom dropdown arrow */
+  background-repeat: no-repeat;
+  background-position: calc(100% - 10px) center;
+  background-size: 12px;
+  color: #2c3e50;
+}
+
+/* Hover effect for dropdown menu */
+select#documentList:hover {
+  border-color: #888;
+}
+
+/* Focus effect for dropdown menu */
+select#documentList:focus {
+  outline: none;
+  border-color: #4CAF50;
+}
+
+/* Disabled effect for dropdown menu */
+select#documentList:disabled {
+  background-color: #f2f2f2;
+  color: #888;
 }
