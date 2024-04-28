@@ -3,15 +3,7 @@ import './style.css';
 import firebase from 'firebase/app';
 import 'firebase/firestore';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBHY6NUkLHVXpPlROI-h7sbcGZ-7AQJmQQ",
-  authDomain: "mostepichack.firebaseapp.com",
-  projectId: "mostepichack",
-  storageBucket: "mostepichack.appspot.com",
-  messagingSenderId: "965447933186",
-  appId: "1:965447933186:web:662e74c777d1aac4eb761b",
-  measurementId: "G-JFSPMD5KF9"
-};
+import firebaseConfig from '../firebase-creds.json';
 
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
@@ -34,18 +26,13 @@ const pc = new RTCPeerConnection(servers);
 let localStream = null;
 let remoteStream = null;
 var sendChannel = null;
-
-
-
+let callId = null;
 
 // HTML elements
 const webcamButton = document.getElementById('webcamButton');
 const webcamVideo = document.getElementById('webcamVideo');
-const callButton = document.getElementById('callButton');
-const callInput = document.getElementById('callInput');
 const answerButton = document.getElementById('answerButton');
 const remoteVideo = document.getElementById('remoteVideo');
-const hangupButton = document.getElementById('hangupButton');
 
 // Fetch documents from Firestore collection
 const renderDocuments = async () => {
@@ -94,7 +81,6 @@ webcamButton.onclick = async () => {
   webcamVideo.srcObject = localStream;
   remoteVideo.srcObject = remoteStream;
 
-  callButton.disabled = false;
   answerButton.disabled = false;
   webcamButton.disabled = true;
 
@@ -106,56 +92,8 @@ webcamButton.onclick = async () => {
   hangupButton.addEventListener('click', sendMessage, false);
 };
 
-// 2. Create an offer
-callButton.onclick = async () => {
-  // Reference Firestore collections for signaling
-  const callDoc = firestore.collection('calls').doc();
-  const offerCandidates = callDoc.collection('offerCandidates');
-  const answerCandidates = callDoc.collection('answerCandidates');
-
-  callInput.value = callDoc.id;
-
-  // Get candidates for caller, save to db
-  pc.onicecandidate = (event) => {
-    event.candidate && offerCandidates.add(event.candidate.toJSON());
-  };
-
-  // Create offer
-  const offerDescription = await pc.createOffer();
-  await pc.setLocalDescription(offerDescription);
-
-  const offer = {
-    sdp: offerDescription.sdp,
-    type: offerDescription.type,
-  };
-
-  await callDoc.set({ offer });
-
-  // Listen for remote answer
-  callDoc.onSnapshot((snapshot) => {
-    const data = snapshot.data();
-    if (!pc.currentRemoteDescription && data?.answer) {
-      const answerDescription = new RTCSessionDescription(data.answer);
-      pc.setRemoteDescription(answerDescription);
-    }
-  });
-
-  // When answered, add candidate to peer connection
-  answerCandidates.onSnapshot((snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      if (change.type === 'added') {
-        const candidate = new RTCIceCandidate(change.doc.data());
-        pc.addIceCandidate(candidate);
-      }
-    });
-  });
-
-  hangupButton.disabled = false;
-};
-
 // 3. Answer the call with the unique ID
 answerButton.onclick = async () => {
-  const callId = callInput.value;
   const callDoc = firestore.collection('calls').doc(callId);
   const answerCandidates = callDoc.collection('answerCandidates');
   const offerCandidates = callDoc.collection('offerCandidates');

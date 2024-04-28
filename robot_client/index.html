@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Robot Client</title>
+  </head>
+  <body>
+    <h2>1. Start your Webcam</h2>
+    <div class="videos">
+      <span>
+        <h3>Local Stream</h3>
+        <video id="webcamVideo" autoplay playsinline></video>
+      </span>
+    </div>
+
+    <button id="webcamButton">Start webcam</button>
+    <h2>2. Startup Robot Connection</h2>
+    <button id="startupConnectionButton" disabled>Startup Connection</button>
+
+    <h2>3. End Connection</h2>
+
+    <button id="endConnectionButton" disabled>End Connection</button>
+
+    <script type="module" src="/main.js"></script>
+
+  </body>
+</html>
