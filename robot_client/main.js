@@ -3,15 +3,7 @@ import './style.css';
 import firebase from 'firebase/app';
 import 'firebase/firestore';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBHY6NUkLHVXpPlROI-h7sbcGZ-7AQJmQQ",
-  authDomain: "mostepichack.firebaseapp.com",
-  projectId: "mostepichack",
-  storageBucket: "mostepichack.appspot.com",
-  messagingSenderId: "965447933186",
-  appId: "1:965447933186:web:662e74c777d1aac4eb761b",
-  measurementId: "G-JFSPMD5KF9"
-};
+import firebaseConfig from '../firebase-creds.json';
 
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
@@ -32,51 +24,43 @@ const servers = {
 // Global State
 const pc = new RTCPeerConnection(servers);
 let localStream = null;
-let remoteStream = null;
+let callId = null;
 
 // HTML elements
 const webcamButton = document.getElementById('webcamButton');
 const webcamVideo = document.getElementById('webcamVideo');
-const callButton = document.getElementById('callButton');
-const callInput = document.getElementById('callInput');
-const answerButton = document.getElementById('answerButton');
-const remoteVideo = document.getElementById('remoteVideo');
-const hangupButton = document.getElementById('hangupButton');
-
+const startUpConnectionButton = document.getElementById('startupConnectionButton');
+const endConnectionButton = document.getElementById('endConnectionButton');
 // 1. Setup media sources
 
 webcamButton.onclick = async () => {
   localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  remoteStream = new MediaStream();
 
   // Push tracks from local stream to peer connection
   localStream.getTracks().forEach((track) => {
     pc.addTrack(track, localStream);
   });
 
-  // Pull tracks from remote stream, add to video stream
-  pc.ontrack = (event) => {
-    event.streams[0].getTracks().forEach((track) => {
-      remoteStream.addTrack(track);
-    });
-  };
-
   webcamVideo.srcObject = localStream;
-  remoteVideo.srcObject = remoteStream;
 
-  callButton.disabled = false;
-  answerButton.disabled = false;
+  startUpConnectionButton.disabled = false;
+  endConnectionButton.disabled = false;
   webcamButton.disabled = true;
 };
 
 // 2. Create an offer
-callButton.onclick = async () => {
+startUpConnectionButton.onclick = async () => {
+  if(callId !== null) {
+    console.log("Call already exists");
+    return;
+  }
+  callId = "robot-1";
   // Reference Firestore collections for signaling
-  const callDoc = firestore.collection('calls').doc();
+  const callDoc = firestore.collection('calls').doc(callId);
   const offerCandidates = callDoc.collection('offerCandidates');
   const answerCandidates = callDoc.collection('answerCandidates');
 
-  callInput.value = callDoc.id;
+  console.log(callId);
 
   // Get candidates for caller, save to db
   pc.onicecandidate = (event) => {
@@ -113,42 +97,28 @@ callButton.onclick = async () => {
     });
   });
 
-  hangupButton.disabled = false;
+  endConnectionButton.disabled = false;
 };
 
-// 3. Answer the call with the unique ID
-answerButton.onclick = async () => {
-  const callId = callInput.value;
+endConnectionButton.onclick = async () => {
+  if (callId === null) {
+    console.log("No call to end");
+    return;
+  }
   const callDoc = firestore.collection('calls').doc(callId);
-  const answerCandidates = callDoc.collection('answerCandidates');
   const offerCandidates = callDoc.collection('offerCandidates');
+  const answerCandidates = callDoc.collection('answerCandidates');
 
-  pc.onicecandidate = (event) => {
-    event.candidate && answerCandidates.add(event.candidate.toJSON());
-  };
-
-  const callData = (await callDoc.get()).data();
-
-  const offerDescription = callData.offer;
-  await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
-
-  const answerDescription = await pc.createAnswer();
-  await pc.setLocalDescription(answerDescription);
-
-  const answer = {
-    type: answerDescription.type,
-    sdp: answerDescription.sdp,
-  };
-
-  await callDoc.update({ answer });
-
-  offerCandidates.onSnapshot((snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      console.log(change);
-      if (change.type === 'added') {
-        let data = change.doc.data();
-        pc.addIceCandidate(new RTCIceCandidate(data));
-      }
-    });
+  const query = await offerCandidates.get();
+  query.forEach((candidate) => {
+    candidate.ref.delete();
   });
-};
+
+  const query2 = await answerCandidates.get();
+  query2.forEach((candidate) => {
+    candidate.ref.delete();
+  });
+
+  await callDoc.delete();
+  callId = null;
+}
