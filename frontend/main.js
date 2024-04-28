@@ -33,6 +33,10 @@ const servers = {
 const pc = new RTCPeerConnection(servers);
 let localStream = null;
 let remoteStream = null;
+var sendChannel = null;
+
+
+
 
 // HTML elements
 const webcamButton = document.getElementById('webcamButton');
@@ -64,13 +68,15 @@ const renderDocuments = async () => {
   });
 };
 
+let callDoc; // Define callDoc outside the callback
+
 // Call renderDocuments function when the DOM content is loaded
 document.addEventListener('DOMContentLoaded', renderDocuments);
 
 // 1. Setup media sources
 
 webcamButton.onclick = async () => {
-  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
   remoteStream = new MediaStream();
 
   // Push tracks from local stream to peer connection
@@ -91,6 +97,13 @@ webcamButton.onclick = async () => {
   callButton.disabled = false;
   answerButton.disabled = false;
   webcamButton.disabled = true;
+
+
+  // Create the data channel and establish its event listeners
+  sendChannel = pc.createDataChannel("sendChannel");
+  sendChannel.onopen = handleSendChannelStatusChange;
+  sendChannel.onclose = handleSendChannelStatusChange;
+  hangupButton.addEventListener('click', sendMessage, false);
 };
 
 // 2. Create an offer
@@ -177,6 +190,26 @@ answerButton.onclick = async () => {
   });
 };
 
+
+
+function handleSendChannelStatusChange(event) {
+  if (sendChannel) {
+    var state = sendChannel.readyState;
+
+    if (state === "open") {
+      console.log("Data channel is open and ready to be used.");
+    } else {
+      console.log("Data channel is not open.");
+    }
+  }
+}
+
+function sendMessage() {
+  sendChannel.send("Hello from the sender!");
+}
+
+
+/*
 // 4. Establish a data channel
 let dataChannel;
 
@@ -190,6 +223,19 @@ const createDataChannel = () => {
   // Event listener for when the data channel is opened
   dataChannel.onopen = () => {
     console.log('Data channel opened');
+
+    // Example usage: sending JSON data
+    sendJsonData({ key: 'value' });
+  };
+
+  // Event listener for errors when creating or opening the data channel
+  dataChannel.onerror = (error) => {
+    console.error('Error with data channel:', error);
+  };
+
+  // Event listener for when the data channel is closed
+  dataChannel.onclose = () => {
+    console.log('Data channel closed');
   };
 
   // Event listener for when the data channel receives a message
@@ -202,11 +248,20 @@ const createDataChannel = () => {
 
 // Call createDataChannel function after peer connection is created
 pc.onnegotiationneeded = async () => {
+  if (!callDoc) {
+    console.error('callDoc is not defined.');
+    return;
+  }
+
   await pc.setLocalDescription(await pc.createOffer());
   const offer = { sdp: pc.localDescription.toJSON(), type: pc.localDescription.type };
-  await callDoc.set({ offer });
-  // Create data channel after setting the local description
-  createDataChannel();
+  try {
+    await callDoc.set({ offer });
+    // Create data channel after setting the local description
+    createDataChannel();
+  } catch (error) {
+    console.error('Error setting offer in callDoc:', error);
+  }
 };
 
 // Event listener for when a new data channel is created
@@ -233,6 +288,4 @@ const sendJsonData = (data) => {
     console.error('Data channel is not open or not available');
   }
 };
-
-// Example usage: sending JSON data
-sendJsonData({ key: 'value' });
+*/
